@@ -14,6 +14,7 @@ class KeyCatchLineEdit(QLineEdit):
         self.setReadOnly(True)
         self.command_mode = command_mode
         self.command_text = ""
+        self.ENTER_MARKER = "{ENTER}" 
         self.is_trigger_key = False 
         
         # 기본 스타일 설정
@@ -70,7 +71,7 @@ class KeyCatchLineEdit(QLineEdit):
         if self.command_mode:
             key = event.key()
             if key == Qt.Key_Return or key == Qt.Key_Enter:
-                self.command_text += "nt"
+                self.command_text += self.ENTER_MARKER
             else:
                 key_text = event.text()
                 if key_text:
@@ -85,26 +86,75 @@ class KeyCatchLineEdit(QLineEdit):
             key_text = event.text().upper()
             key = event.key()
             
-            if key == Qt.Key_Pause: key_text = 'PAUSE'
-            elif key == Qt.Key_F1: key_text = 'F1'
-            elif key == Qt.Key_F2: key_text = 'F2'
-            elif key == Qt.Key_F3: key_text = 'F3'
-            elif key == Qt.Key_F4: key_text = 'F4'
-            elif key == Qt.Key_F5: key_text = 'F5'
-            elif key == Qt.Key_F6: key_text = 'F6'
-            elif key == Qt.Key_F7: key_text = 'F7'
-            elif key == Qt.Key_F8: key_text = 'F8'
-            elif key == Qt.Key_F9: key_text = 'F9'
-            elif key == Qt.Key_F10: key_text = 'F10'
-            elif key == Qt.Key_F11: key_text = 'F11'
-            elif key == Qt.Key_F12: key_text = 'F12'
-            elif key == Qt.Key_Return or key == Qt.Key_Enter: key_text = 'ENTER'
-            elif key == Qt.Key_Space: key_text = 'SPACE'
-            elif key == Qt.Key_Tab: key_text = 'TAB'
-            elif key == Qt.Key_Shift: key_text = 'SHIFT'
-            elif key == Qt.Key_Control: key_text = 'CTRL'
-            elif key == Qt.Key_Alt: key_text = 'ALT'
-            elif key == Qt.Key_Escape: key_text = 'ESC'
+             # 모든 키에 대해 처리
+            if key in range(Qt.Key_Space, Qt.Key_AsciiTilde + 1):
+                key_text = event.text().upper()
+            elif key == Qt.Key_Home:
+                key_text = 'HOME'
+            elif key == Qt.Key_End:
+                key_text = 'END'
+            elif key == Qt.Key_PageUp:
+                key_text = 'PAGEUP'
+            elif key == Qt.Key_PageDown:
+                key_text = 'PAGEDOWN'
+            elif key == Qt.Key_Insert:
+                key_text = 'INSERT'
+            elif key == Qt.Key_Delete:
+                key_text = 'DELETE'
+            elif key == Qt.Key_Backspace:
+                key_text = 'BACKSPACE'
+            elif key == Qt.Key_Left:
+                key_text = 'LEFT'
+            elif key == Qt.Key_Right:
+                key_text = 'RIGHT'
+            elif key == Qt.Key_Up:
+                key_text = 'UP'
+            elif key == Qt.Key_Down:
+                key_text = 'DOWN'
+            elif key == Qt.Key_Escape:
+                key_text = 'ESC'
+            elif key == Qt.Key_Tab:
+                key_text = 'TAB'
+            elif key == Qt.Key_Shift:
+                key_text = 'SHIFT'
+            elif key == Qt.Key_Control:
+                key_text = 'CTRL'
+            elif key == Qt.Key_Alt:
+                key_text = 'ALT'
+            elif key == Qt.Key_Meta:
+                key_text = 'META'
+            elif key == Qt.Key_CapsLock:
+                key_text = 'CAPSLOCK'
+            elif key == Qt.Key_NumLock:
+                key_text = 'NUMLOCK'
+            elif key == Qt.Key_ScrollLock:
+                key_text = 'SCROLLLOCK'
+            elif key == Qt.Key_F1:
+                key_text = 'F1'
+            elif key == Qt.Key_F2:
+                key_text = 'F2'
+            elif key == Qt.Key_F3:
+                key_text = 'F3'
+            elif key == Qt.Key_F4:
+                key_text = 'F4'
+            elif key == Qt.Key_F5:
+                key_text = 'F5'
+            elif key == Qt.Key_F6:
+                key_text = 'F6'
+            elif key == Qt.Key_F7:
+                key_text = 'F7'
+            elif key == Qt.Key_F8:
+                key_text = 'F8'
+            elif key == Qt.Key_F9:
+                key_text = 'F9'
+            elif key == Qt.Key_F10:
+                key_text = 'F10'
+            elif key == Qt.Key_F11:
+                key_text = 'F11'
+            elif key == Qt.Key_F12:
+                key_text = 'F12'
+            elif key == Qt.Key_Return or key == Qt.Key_Enter:
+                key_text = 'ENTER'
             
             if key_text:
                 self.setText(key_text)
@@ -217,12 +267,13 @@ class MacroThread(QThread):
                                     if not self.macro_enabled:
                                         break
                                     
-                                    char = commands[char_index]
-                                    if char.lower() == 'n' and char_index + 1 < len(commands) and commands[char_index + 1].lower() == 't':
+                                    # {ENTER} 검사
+                                    if (char_index + 7 <= len(commands) and 
+                                        commands[char_index:char_index + 7] == "{ENTER}"):
                                         keyboard.press_and_release('enter')
-                                        char_index += 2
+                                        char_index += 7  # {ENTER} 길이만큼 인덱스 증가
                                     else:
-                                        keyboard.write(char)
+                                        keyboard.write(commands[char_index])
                                         char_index += 1
                                     time.sleep(settings['key_delay'] / 1000)
                                 
