@@ -1,6 +1,7 @@
 import sys
 import time
-import keyboard  # 이 모듈은 Windows 전용이므로 macOS에서는 다른 방법을 사용해야 합니다.
+from pynput import keyboard as kb
+from pynput.keyboard import Key, Controller
 import pyautogui
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QLabel, QLineEdit, QPushButton, QSpinBox,
@@ -225,56 +226,14 @@ class MacroThread(QThread):
 
     def run(self):
         self.status_signal.emit("매크로 대기 중...")
-        while self.running:
-            try:
-                # 편집 모드일 때는 매크로 동작 중지
-                if self.is_editing:
-                    time.sleep(0.01)
-                    continue
-
-                # 시작/종료 키로 매크로 ON/OFF 전환
-                current_start_key = self.start_key  # 현재 설정된 시작/종료 키 사용
-                # keyboard.is_pressed 대신 다른 방법 사용
-                if pyautogui.hotkey(current_start_key):  # macOS에서 핫키 감지
-                    time.sleep(0.2)
-                    self.macro_enabled = not self.macro_enabled
-                    status = "실행 중" if self.macro_enabled else "일시 중지"
-                    self.status_signal.emit(f"매크로 {status}")
-
-                # 매크로가 활성화된 상태에서만 동작
-                if self.macro_enabled:
-                    current_settings = self.settings_list  # 현재 설정된 매크로 목록 사용
-                    for settings in current_settings:
-                        # keyboard.is_pressed 대신 다른 방법 사용
-                        if pyautogui.hotkey(settings['trigger_key']):  # macOS에서 핫키 감지
-                            time.sleep(0.2)
-                            self.status_signal.emit("커맨드 입력 중...")
-
-                            commands = settings['command']
-                            if commands:
-                                char_index = 0
-                                while char_index < len(commands):
-                                    if not self.macro_enabled:
-                                        break
-
-                                    # {ENTER} 검사
-                                    if (char_index + 7 <= len(commands) and 
-                                        commands[char_index:char_index + 7] == "{ENTER}"):
-                                        pyautogui.press('enter')  # macOS에서 엔터키 입력
-                                        char_index += 7  # {ENTER} 길이만큼 인덱스 증가
-                                    else:
-                                        pyautogui.typewrite(commands[char_index])  # macOS에서 문자 입력
-                                        char_index += 1
-                                    time.sleep(settings['key_delay'] / 1000)
-
-                                self.status_signal.emit("매크로 실행 중")
-
+        with kb.Listener(on_press=self.on_press, on_release=self.on_release) as listener:
+            while self.running:
                 time.sleep(0.01)
-
-            except Exception as e:
-                self.status_signal.emit(f"오류 발생: {str(e)}")
-                break
-
+                if not self.running:
+                    listener.stop()
+                    break
+            listener.join()
+        
         self.finished.emit()
 
     def stop(self):

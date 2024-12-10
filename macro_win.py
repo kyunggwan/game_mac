@@ -15,6 +15,10 @@ class KeyCatchLineEdit(QLineEdit):
         self.command_mode = command_mode
         self.command_text = ""
         self.ENTER_MARKER = "{ENTER}" 
+        self.LEFT_MARKER = "{LEFT}"
+        self.RIGHT_MARKER = "{RIGHT}"
+        self.UP_MARKER = "{UP}"
+        self.DOWN_MARKER = "{DOWN}"
         self.is_trigger_key = False 
         
         # 기본 스타일 설정
@@ -72,6 +76,14 @@ class KeyCatchLineEdit(QLineEdit):
             key = event.key()
             if key == Qt.Key_Return or key == Qt.Key_Enter:
                 self.command_text += self.ENTER_MARKER
+            elif key == Qt.Key_Left:
+                self.command_text += self.LEFT_MARKER
+            elif key == Qt.Key_Right:
+                self.command_text += self.RIGHT_MARKER
+            elif key == Qt.Key_Up:
+                self.command_text += self.UP_MARKER
+            elif key == Qt.Key_Down:
+                self.command_text += self.DOWN_MARKER
             else:
                 key_text = event.text()
                 if key_text:
@@ -267,11 +279,27 @@ class MacroThread(QThread):
                                     if not self.macro_enabled:
                                         break
                                     
-                                    # {ENTER} 검사
-                                    if (char_index + 7 <= len(commands) and 
-                                        commands[char_index:char_index + 7] == "{ENTER}"):
-                                        keyboard.press_and_release('enter')
-                                        char_index += 7  # {ENTER} 길이만큼 인덱스 증가
+                                    # 특수 키 마커 검사
+                                    if char_index + 7 <= len(commands):
+                                        current_chunk = commands[char_index:char_index + 7]
+                                        if current_chunk == "{ENTER}":
+                                            keyboard.press_and_release('enter')
+                                            char_index += 7
+                                        elif current_chunk == "{LEFT}":
+                                            keyboard.press_and_release('left')
+                                            char_index += 7
+                                        elif current_chunk == "{RIGHT}":
+                                            keyboard.press_and_release('right')
+                                            char_index += 7
+                                        elif current_chunk == "{UP}":
+                                            keyboard.press_and_release('up')
+                                            char_index += 7
+                                        elif current_chunk == "{DOWN}":
+                                            keyboard.press_and_release('down')
+                                            char_index += 7
+                                        else:
+                                            keyboard.write(commands[char_index])
+                                            char_index += 1
                                     else:
                                         keyboard.write(commands[char_index])
                                         char_index += 1
