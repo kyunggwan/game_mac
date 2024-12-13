@@ -1,5 +1,6 @@
 import sys
 import time
+import random
 from pynput import keyboard as kb
 from pynput.keyboard import Key, Controller
 import pyautogui
@@ -11,7 +12,7 @@ from PyQt5.QtGui import QFont
 
 # 맥용 키 매핑
 MAC_KEY_MAPPING = {
-    'PAUSE': Key.pause,
+    'PAUSE': Key.f12,
     'F1': Key.f1,
     'F2': Key.f2,
     'F3': Key.f3,
@@ -38,58 +39,28 @@ MAC_KEY_MAPPING = {
 class KeyCatchLineEdit(QLineEdit):
     def __init__(self, parent=None, command_mode=False):
         super().__init__(parent)
-        self.setReadOnly(True)
         self.command_mode = command_mode
         self.command_text = ""
+        self.apply_style()
         
+    def apply_style(self):
         self.setStyleSheet("""
-            QLineEdit {
+            QLineEdit {3
                 border: 1px solid #B0B0B0;
                 border-radius: 3px;
                 padding: 4px;
-                background-color: #FFFFFF;
-            }
-            QLineEdit:focus {
-                border: 2px solid #0078D7;
-                background-color: #F0F8FF;
+                background-color: #F5F5F5;
+                color: black !important;
             }
         """)
         
     def focusInEvent(self, event):
         super().focusInEvent(event)
-        if self.command_mode:
-            self.setStyleSheet("""
-                QLineEdit {
-                    border: 2px solid #0078D7;
-                    border-radius: 3px;
-                    padding: 4px;
-                    background-color: #F0F8FF;
-                }
-            """)
-        else:
-            self.setStyleSheet("""
-                QLineEdit {
-                    border: 2px solid #FF4500;
-                    border-radius: 3px;
-                    padding: 4px;
-                    background-color: #FFF0F0;
-                }
-            """)
+        self.apply_style()
             
     def focusOutEvent(self, event):
         super().focusOutEvent(event)
-        self.setStyleSheet("""
-            QLineEdit {
-                border: 1px solid #B0B0B0;
-                border-radius: 3px;
-                padding: 4px;
-                background-color: #FFFFFF;
-            }
-            QLineEdit:focus {
-                border: 2px solid #0078D7;
-                background-color: #F0F8FF;
-            }
-        """)
+        self.apply_style()
         
     def keyPressEvent(self, event):
         if self.command_mode:
@@ -101,18 +72,12 @@ class KeyCatchLineEdit(QLineEdit):
                 if key_text:
                     self.command_text += key_text
             self.setText(self.command_text)
-            
-            if isinstance(self.parent(), QWidget):
-                window = self.window()
-                if isinstance(window, MacroGUI):
-                    window.update_macro_settings()
         else:
             key_text = event.text().upper()
             key = event.key()
             
             # 맥용 키 매핑
-            if key == Qt.Key_Pause: key_text = 'PAUSE'
-            elif key == Qt.Key_F1: key_text = 'F1'
+            if key == Qt.Key_F1: key_text = 'F1'
             elif key == Qt.Key_F2: key_text = 'F2'
             elif key == Qt.Key_F3: key_text = 'F3'
             elif key == Qt.Key_F4: key_text = 'F4'
@@ -135,11 +100,15 @@ class KeyCatchLineEdit(QLineEdit):
             
             if key_text:
                 self.setText(key_text)
-                if isinstance(self.parent(), QWidget):
-                    window = self.window()
-                    if isinstance(window, MacroGUI):
-                        QThread.msleep(100)
-                        window.update_macro_settings()
+                
+        self.apply_style()  # 키 입력 후 스타일 적용
+        
+        if isinstance(self.parent(), QWidget):
+            window = self.window()
+            if isinstance(window, MacroGUI):
+                if not self.command_mode:
+                    QThread.msleep(100)
+                window.update_macro_settings()
     
     def clear_command(self):
         self.command_text = ""
@@ -170,21 +139,31 @@ class MacroThread(QThread):
         except AttributeError:
             key_char = str(key)
         
+        # 디버깅을 위한 출력 추가
+        print(f"Pressed key: {key_char}")
+        print(f"Start key: {self.start_key.upper()}")
+        print(f"Current macro status: {'Enabled' if self.macro_enabled else 'Disabled'}")
+        
         self.current_keys.add(key_char)
         
         if not self.is_editing:
             # 시작/종료 키 체크
             if str(key) == str(MAC_KEY_MAPPING.get(self.start_key.upper())):
+                print("Start/Stop key pressed!")
                 time.sleep(0.2)
                 self.macro_enabled = not self.macro_enabled
-                status = "실행 중" if self.macro_enabled else "일시 중지"
-                self.status_signal.emit(f"매크로 {status}")
+                status = "🟢 매크로 실행 중" if self.macro_enabled else "🔴 매크로 일시 중지"
+                self.status_signal.emit(status)
             
             # 매크로 실행
             if self.macro_enabled:
                 current_time = time.time()
                 for settings in self.settings_list:
                     trigger_key = settings['trigger_key'].upper()
+                    print(f"Checking trigger key: {trigger_key}")  # 디버깅용
+                    print(f"Current key: {str(key)}")  # 디버깅용
+                    print(f"Mapped key: {str(MAC_KEY_MAPPING.get(trigger_key))}")  # 디버깅용
+                    
                     if str(key) == str(MAC_KEY_MAPPING.get(trigger_key)):
                         if (trigger_key not in self.last_trigger_time or 
                             current_time - self.last_trigger_time.get(trigger_key, 0) > 0.5):
@@ -207,6 +186,11 @@ class MacroThread(QThread):
         self.status_signal.emit("커맨드 입력 중...")
         commands = settings['command']
         if commands:
+            print("\n=== 매크로 실행 정보 ===")
+            print(f"입력할 커맨드: {commands}")
+            print(f"최소 딜레이: {settings['min_key_delay']}ms")
+            print(f"최대 딜레이: {settings['max_key_delay']}ms")
+            
             char_index = 0
             while char_index < len(commands):
                 if not self.macro_enabled:
@@ -214,14 +198,21 @@ class MacroThread(QThread):
                 
                 char = commands[char_index]
                 if char.lower() == 'n' and char_index + 1 < len(commands) and commands[char_index + 1].lower() == 't':
+                    print(f"Enter 키 입력")
                     self.keyboard.press(Key.enter)
                     self.keyboard.release(Key.enter)
                     char_index += 2
                 else:
+                    print(f"문자 입력: {char}")
                     self.keyboard.type(char)
                     char_index += 1
-                time.sleep(settings['key_delay'] / 1000)
+                    
+                # 랜덤 딜레이 적용
+                random_delay = random.uniform(settings['min_key_delay'], settings['max_key_delay']) / 1000
+                print(f"현재 딜레이: {random_delay*1000:.2f}ms")
+                time.sleep(random_delay)
             
+            print("=== 매크로 실행 완료 ===\n")
             self.status_signal.emit("매크로 실행 중")
 
     def run(self):
@@ -238,6 +229,7 @@ class MacroThread(QThread):
 
     def stop(self):
         self.running = False
+        self.macro_enabled = False
 
 class MacroSettingWidget(QWidget):
     def __init__(self, parent=None):
@@ -251,15 +243,24 @@ class MacroSettingWidget(QWidget):
         # 커맨드 입력
         self.input_text = KeyCatchLineEdit(command_mode=True)
         self.input_text.setPlaceholderText("커맨드 입력")
+        self.input_text.setFixedWidth(200)  # 너비 고정
         layout.addWidget(self.input_text)
         
-        # 키 입력 딜레이
-        self.key_delay = QSpinBox()
-        self.key_delay.setRange(1, 1000)
-        self.key_delay.setValue(100)
-        self.key_delay.setFixedWidth(70)
-        self.key_delay.valueChanged.connect(self.settings_changed)
-        layout.addWidget(self.key_delay)
+        # 키 입력 딜레이 (최소값)
+        self.min_key_delay = QSpinBox()
+        self.min_key_delay.setRange(1, 1000)
+        self.min_key_delay.setValue(50)
+        self.min_key_delay.setFixedWidth(70)
+        self.min_key_delay.valueChanged.connect(self.settings_changed)
+        layout.addWidget(self.min_key_delay)
+        
+        # 키 입력 딜레이 (최대값)
+        self.max_key_delay = QSpinBox()
+        self.max_key_delay.setRange(1, 1000)
+        self.max_key_delay.setValue(90)
+        self.max_key_delay.setFixedWidth(70)
+        self.max_key_delay.valueChanged.connect(self.settings_changed)
+        layout.addWidget(self.max_key_delay)
         
         # 트리거 키
         self.trigger_key = KeyCatchLineEdit()
@@ -270,7 +271,7 @@ class MacroSettingWidget(QWidget):
         layout.addWidget(self.trigger_key)
         
         # 초기화 버튼
-        self.clear_button = QPushButton('초기화')
+        self.clear_button = QPushButton('3')
         self.clear_button.setFixedWidth(50)
         self.clear_button.clicked.connect(self.clear_settings)
         layout.addWidget(self.clear_button)
@@ -280,16 +281,21 @@ class MacroSettingWidget(QWidget):
         self.delete_button.setFixedWidth(50)
         self.delete_button.clicked.connect(self.deleteLater)
         layout.addWidget(self.delete_button)
+        
+        # 남은 공간을 채움
+        layout.addStretch()
 
     def clear_settings(self):
         self.input_text.clear_command()
-        self.key_delay.setValue(100)
+        self.min_key_delay.setValue(50)
+        self.max_key_delay.setValue(90)
         self.trigger_key.setText('F6')
         self.settings_changed()
 
     def settings_changed(self):
         if isinstance(self.window(), MacroGUI):
             self.window().update_macro_settings()
+
 class MacroGUI(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -320,8 +326,17 @@ class MacroGUI(QMainWindow):
         
         # 상태 표시 라벨
         self.status_label = QLabel('대기 중...')
-        self.status_label.setFont(QFont('Arial', 12))
-        self.status_label.setStyleSheet('color: blue;')
+        self.status_label.setFont(QFont('Arial', 16, QFont.Bold))
+        self.status_label.setAlignment(Qt.AlignCenter)
+        self.status_label.setStyleSheet("""
+            QLabel {
+                color: #1a73e8;
+                background-color: #f8f9fa;
+                padding: 10px;
+                border-radius: 5px;
+                margin: 5px;
+            }
+        """)
         main_layout.addWidget(self.status_label)
         
         # 매크로 설정 컨테이너
@@ -337,11 +352,39 @@ class MacroGUI(QMainWindow):
         
         # 컬럼 헤더
         header_layout = QHBoxLayout()
-        header_layout.addWidget(QLabel('입력할 커맨드'))
-        header_layout.addWidget(QLabel('딜레이(ms)'))
-        header_layout.addWidget(QLabel('트리거 키'))
-        header_layout.addWidget(QLabel(''))  # 버튼들 공간
-        header_layout.addWidget(QLabel(''))  # 버튼들 공간
+        
+        # 입력할 커맨드 라벨
+        command_label = QLabel('입력할 커맨드')
+        command_label.setFixedWidth(200)
+        command_label.setAlignment(Qt.AlignCenter)
+        header_layout.addWidget(command_label)
+        
+        # 딜레이 라벨을 수직 레이아웃으로 변경
+        delay_container = QWidget()
+        delay_layout = QVBoxLayout(delay_container)
+        delay_layout.setContentsMargins(0, 0, 0, 0)
+        delay_layout.setSpacing(2)  # 라벨 간격 조정
+        
+        delay_label = QLabel('딜레이(ms)')
+        delay_label.setAlignment(Qt.AlignCenter)
+        delay_layout.addWidget(delay_label)
+        
+        delay_sublabel = QLabel('최소     최대')
+        delay_sublabel.setAlignment(Qt.AlignCenter)
+        delay_layout.addWidget(delay_sublabel)
+        
+        delay_container.setFixedWidth(140)
+        header_layout.addWidget(delay_container)
+        
+        # 트리거 키 라벨
+        trigger_label = QLabel('트리거 키')
+        trigger_label.setFixedWidth(100)
+        trigger_label.setAlignment(Qt.AlignCenter)
+        header_layout.addWidget(trigger_label)
+        
+        # 버튼들을 위한 여백
+        header_layout.addStretch()
+        
         self.settings_layout.addLayout(header_layout)
         
         # 첫 번째 매크로 설정 추가
@@ -357,14 +400,14 @@ class MacroGUI(QMainWindow):
         start_key_layout.addWidget(QLabel('시작/종료 키:'))
         self.start_key = KeyCatchLineEdit()
         self.start_key.setPlaceholderText("클릭 후 키를 누르세요")
-        self.start_key.setText('F12')  # 맥에서는 Pause 키가 없으므로 F12로 변경
+        self.start_key.setText('F12')
         self.start_key.textChanged.connect(self.update_macro_settings)
         start_key_layout.addWidget(self.start_key)
         main_layout.addLayout(start_key_layout)
         
         # 도움말 추가
         help_text = """
-        사용법:
+        사용:
         1. 각 줄에 커맨드, 딜레이, 트리거 키를 설정하세요
         2. '매크로 추가' 버튼으로 새로운 매크로를 추가할 수 있습니다
         3. 시작/종료 키(F12)를 눌러 매크로를 시작/종료할 수 있습니다
@@ -388,12 +431,12 @@ class MacroGUI(QMainWindow):
             if isinstance(widget, MacroSettingWidget):
                 settings = {
                     'command': widget.input_text.command_text,
-                    'key_delay': widget.key_delay.value(),
+                    'min_key_delay': widget.min_key_delay.value(),
+                    'max_key_delay': widget.max_key_delay.value(),
                     'trigger_key': widget.trigger_key.text(),
                 }
                 settings_list.append(settings)
         return settings_list
-
     def start_macro(self):
         settings_list = self.get_macro_settings()
         self.macro_thread = MacroThread(settings_list, self.start_key.text())
@@ -421,11 +464,8 @@ class MacroGUI(QMainWindow):
 if __name__ == '__main__':
     pyautogui.FAILSAFE = True
     app = QApplication(sys.argv)
-    app.setStyle('Fusion')  # 맥OS에서 더 나은 모양을 위해 Fusion 스타일 사용
+    app.setStyle('Fusion')
     macro_gui = MacroGUI()
-    
-    # 포커스 변경 이벤트 연결
-    app.focusChanged.connect(macro_gui.focusChanged)
     
     macro_gui.show()
     sys.exit(app.exec_())
